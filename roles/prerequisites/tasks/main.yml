@@ -1,0 +1,120 @@
+---
+# This role installs generic items on all hosts
+
+- name: Install unzip
+  yum:
+    name: unzip
+    state: latest  
+  tags:
+  - prerequisites
+
+- name: Install lsof
+  yum:
+    name: lsof
+    state: latest  
+  tags:
+  - prerequisites
+  - lsof
+
+- name: Install gcc
+  yum:
+    name: gcc
+    state: latest  
+  tags:
+  - prerequisites
+  - gcc
+
+- name: Ensure the kit folder is available
+  file:
+    path: "{{ kits_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0777
+  tags:
+  - prerequisites
+
+- name: Ensure certificate folder exists
+  file:
+    path: /etc/ssl/certs/private/
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+  - prerequisites
+
+- name: Check If java is already installed or not
+  shell: "{{ java_name }}/bin/java -version 2>&1 | grep version | awk '{print $3}' | sed 's/\"//g'"
+  register: java_installed
+  tags:
+  - prerequisites
+
+- name: Installed java version
+  debug: "msg={{java_installed.stdout}}"
+  tags:
+  - prerequisites
+
+- block:  
+    - name: Copy Java archive 
+      copy:
+        src: "{{ java_archive_name }}"
+        dest: "{{java_archive}}"
+        owner: root
+        group: root
+        mode: 0644     
+
+    - name: Unpack archive
+      unarchive:
+        src: "{{java_archive}}"
+        dest: "{{java_download_folder}}"
+        remote_src: yes
+
+    - name: Fix ownership
+      file: 
+        state: directory 
+        path: "{{java_name}}"
+        owner: root 
+        group: root 
+        recurse: yes
+
+    - name: Make Java available for system
+      command: 'alternatives --install "/usr/bin/java" "java" "{{java_name}}/bin/java" 2000'
+
+    - name: Set/Configure JAVA_HOME in environment variables 
+      shell: "echo 'export JAVA_HOME={{java_name}}\n export PATH=$JAVA_HOME/bin:$PATH' > {{java_env_file}}"
+    
+    - name: Exports/Run java env file for make JAVA_HOME available globally
+      shell: "source {{java_env_file}}"
+
+    - name: Clean up
+      file: state=absent path={{java_archive}}
+    
+  when: java_installed.stdout == ""
+  become: true
+  become_user: root
+  tags:
+  - prerequisites
+
+- block:  
+  - name: Enable firewall service
+    service: name=firewalld state=started enabled=yes
+    tags:
+    - prerequisites     
+
+  - name: Open 444 Firewall Port
+    firewalld: 
+      port: 444/tcp
+      zone: public 
+      permanent: true 
+      state: enabled 
+      immediate: yes
+    tags:
+    - haproxy
+
+  when: enable_ports == "yes"
+  become: true
+  become_user: root
+  tags:
+  - prerequisites
+

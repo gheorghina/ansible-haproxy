@@ -1,0 +1,149 @@
+---
+# This role installs HAProxy and configures it.
+
+- name: Ensure HAProxy group
+  group:
+    name: "{{ haproxygroup }}"
+    state: present   
+
+- name: Ensure HAProxy user
+  user:
+    name: "{{ haproxyowner }}"
+    group: "{{ haproxygroup }}"
+
+- name: Create HAProxy etc dir
+  file: 
+    path: /etc/haproxy
+    state: directory 
+    owner: "{{haproxyowner}}" 
+    group: "{{haproxygroup}}" 
+    mode: 0766
+  tags:
+  - haproxy
+
+- name: Create HAProxy var lib
+  file: 
+    path: /var/lib/haproxy
+    state: directory 
+    owner: "{{haproxyowner}}" 
+    group: "{{haproxygroup}}" 
+    mode: 0766
+  tags:
+  - haproxy
+
+- name: Create HAProxy stats file
+  file: 
+    path: /var/lib/haproxy/stats
+    state: touch 
+    owner: "{{haproxyowner}}" 
+    group: "{{haproxygroup}}" 
+    mode: 0766
+  tags:
+  - haproxy
+
+- name: Copy HAProxy archive 
+  copy:
+    src: "{{ haproxy_archive_name }}"
+    dest: "{{ kits_path }}"
+    owner: "{{haproxyowner}}"
+    group: "{{haproxygroup}}"
+    mode: 0644    
+  tags: haproxy 
+
+- name: Install HAProxy  
+  yum:
+   name: "{{ kits_path }}/{{haproxy_archive_name}}"
+   state: present
+  register: haproxy_service_installed
+  tags:
+  - haproxy
+  
+- name: Ensure haproxy logs folder is available
+  file:
+    path: /var/log/haproxy
+    state: directory
+    owner: "{{haproxyowner}}"
+    group: "{{haproxygroup}}"
+    mode: 0777
+  tags:
+  - haproxy
+
+- name: Ensure libsemanage-python is installed
+  yum:
+    name: libsemanage-python
+  tags: 
+  - haproxy
+
+- block:  
+  - name: Set (haproxy_connect_any) flag to true and keep it persistent across reboots
+    seboolean:
+      name: haproxy_connect_any
+      state: true
+      persistent: yes
+  when: enable_haproxy_connect == "yes"
+  become: true
+  become_user: root
+  tags:
+  - haproxy
+
+- name: Ensure the configuration file is up to date
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: "{{haproxyowner}}"
+    group: "{{haproxygroup}}"
+    mode: 0644
+  notify:
+    - restart haproxy
+  tags:
+  - haproxy
+  - config
+
+- name: Ensure haproxy rsyslog config is up to date
+  template:
+    src: rsyslog.cfg.j2
+    dest: /etc/rsyslog.d/haproxy.conf
+    owner: "{{haproxyowner}}"
+    group: "{{haproxygroup}}"
+  notify:
+    - restart rsyslog
+  tags:
+  - haproxy
+  - config
+
+- name: Ensure haproxy logrotate config is up to date
+  template:
+    src: logrotate.cfg.j2
+    dest: /etc/logrotate.d/haproxy
+    owner: "{{haproxyowner}}"
+    group: "{{haproxygroup}}"
+  tags:
+  - haproxy
+  - config
+
+- name: Ensure haproxy certificate is in place
+  copy:
+   src: "{{ lbcertificate }}"
+   dest: /etc/ssl/certs/private/haproxy.pem
+   owner: "{{haproxyowner}}"
+   group: "{{haproxygroup}}"
+   mode: 0644
+  tags:
+  - haproxy
+  - config
+
+- name: systemctl daemon-reload
+  become: yes
+  become_user: root
+  when: haproxy_service_installed
+  command: systemctl daemon-reload
+  tags:
+  - haproxy
+
+- name: Start the haproxy service
+  service: 
+    name: haproxy 
+    state: restarted 
+    enabled: yes
+  tags:
+  - haproxy

@@ -1,0 +1,18 @@
+---
+
+#Role haproxy vars
+haproxy_archive_name: "haproxy-1.5.18-6.el7.x86_64.rpm"
+haproxy_installation_folder: /opt
+haproxy_path_name: "haproxy-1.5.18"
+haproxyowner: root
+haproxygroup: root
+
+#Role prerequisites vars
+java_download_folder: /opt
+java_name: "{{java_download_folder}}/jdk1.8.0_171"
+java_archive_name: "jdk-8u171-linux-x64.tar.gz"
+java_archive: "{{java_download_folder}}/jdk-8u171-linux-x64.tar.gz"
+java_env_file: "/etc/profile.d/java.sh"
+java_home: /opt/jdk1.8.0_171
+
+unzip_version: "6.0*"

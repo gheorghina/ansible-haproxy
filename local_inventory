@@ -1,0 +1,8 @@
+haproxy-a ansible_host=10.192.22.70 ansible_user=vagrant ansible_host_name=10.192.22.70
+
+[lbservers]
+haproxy-a
+
+[lbservers:vars]
+lbcertificate=haproxy.pem
+enable_haproxy_connect=yes
